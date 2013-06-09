@@ -1,0 +1,2 @@
+scala -J-server -J-Xmx4G -J-Xms2G -cp `dirname $0`/../target/scala-2.10/proguard/nuvo-spaces_2.10-0.1.1-SNAPSHOT.jar  nuvo.spaces.remote.SpaceServer spaces:ndr/tcp:localhost:9999 $*
+
