@@ -16,3 +16,4 @@ resolvers ++= Seq(
 addSbtPlugin("com.github.hexx" % "sbt-github-repo" % "0.0.1")
 
 addSbtPlugin("com.typesafe.sbt" % "sbt-proguard" % "0.2.1")
+

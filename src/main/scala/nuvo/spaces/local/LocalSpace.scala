@@ -42,20 +42,24 @@ class LocalSpace[T <: Tuple](val locator: SpaceLocator, private var map: scala.c
       println("Running: "+ this)
       var isInterrupted = false
       while (!isInterrupted) {
+        var d: List[T] = null
+
         try {
           // println(">>> Waiting for data")
           syncrhonized(dispatcherLock) {
             dispatchQueueNotEmpty.await()
+            d = streamsData
+            streamsData = List()
           }
           //println(">>> Got data!!!")
           val s  = streams
-          val d = streamsData
+
           d.foreach( t => s.foreach(s => if (s._1(t)) s._2(t)))
 
           val srl = sreadList
 
           srl foreach { e =>
-            streamsData.find(e._1).foreach { x =>
+            d.find(e._1).foreach { x =>
               syncrhonized(e._3) {
                 e._2.signalAll()
               }

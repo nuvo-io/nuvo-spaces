@@ -48,7 +48,7 @@ ProguardKeys.options in Proguard += """
 -dontusemixedcaseclassnames
 -dontskipnonpubliclibraryclasses
 -keeppackagenames **
--keep  class nuvo.spcaes.remote.*Helper {
+-keep  class nuvo.spaces.remote.*Helper {
        *; 
 }
 -keep class scala.collection.immutable.Range {
