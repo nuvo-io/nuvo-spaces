@@ -50,7 +50,6 @@ class SpaceServer(val locator: Locator) {
         buf.putObject(StreamTuple(streamHash, t))
         buf.flip()
         mp.writeTo(buf, cid)
-        // log.debug(s" Stream Handler wrote $buf \non stream $streamHash ")
       }
     }
 
@@ -87,7 +86,6 @@ class SpaceServer(val locator: Locator) {
 
         case OpenStream(spaceHash, p) => {
           val streamHash = p.hashCode()
-          log.debug(s">> StreamHash == $streamHash")
 
           synchronizedRead(spaceMapRWLock) { spaceMap.get(spaceHash) } match {
             case Some(space) => {
@@ -112,10 +110,6 @@ class SpaceServer(val locator: Locator) {
           }
         }
         case ReadTuple(hash, p) => {
-          // log.// log(s"ReadTuple($hash, $p)")
-          // log.debug("Printing all Tuples...")
-          // spaceMap get(hash) map { space => (space.readAll({case _ => true})).foreach(println)}
-          // log.debug("... Done.")
           val tuple = synchronizedRead(spaceMapRWLock){ spaceMap get(hash) } flatMap(_.read[Tuple](p))
 
           tuple match {
@@ -221,15 +215,30 @@ class SpaceServer(val locator: Locator) {
       val msg = msgBuf.getObject[SpaceMessage]
       val action = SpaceServerProtocol.react(msg, m)
 
-      // println(action)
-      action.map(a => {
-        msgBuf.clear()
-        msgBuf.putObject(a)
-        msgBuf.flip()
-        m.mp.writeTo(msgBuf, m.cid)
-        msgBuf.clear()
-      })
+      msgBuf.clear()
 
+      action.map {
+        case SpaceTupleList(hash, ts) => {
+          msgBuf.putObject(TListBegin(hash))
+          msgBuf.flip()
+          m.mp.writeTo(msgBuf, m.cid)
+          ts foreach { t =>
+            msgBuf.clear()
+            msgBuf.putObject(t)
+            msgBuf.flip()
+            m.mp.writeTo(msgBuf, m.cid)
+          }
+          msgBuf.clear()
+          msgBuf.putObject(TListEnd(hash))
+          msgBuf.flip()
+          m.mp.writeTo(msgBuf, m.cid)
+        }
+        case a @ _ => {
+          msgBuf.putObject(a)
+          msgBuf.flip()
+          m.mp.writeTo(msgBuf, m.cid)
+        }
+      }
     }
 
     val iop = new LFIOProcessor (
@@ -259,15 +268,19 @@ class SpaceServer(val locator: Locator) {
 }
 
 object SpaceServer {
+
   def main(args: Array[String]) {
-    if (args.length < 1) {
-      println("USAGE: SpaceServer <locator>")
-      sys.exit(1)
+
+    if (args.length > 0) {
+      Locator(args(0)) map { l =>
+        val server = new SpaceServer(l)
+        server.start()
+        log.log("Space Server Started for locator: " + args(0))
+      } getOrElse {
+        log.error("Invalid Locator: " + args(0))
+      }
     }
-    val locator = Locator(args(0))
-    locator.map (l => {
-      val server = new SpaceServer(l)
-      server.start()
-    })
+    else println("USAGE: SpaceServer <locator>")
+
   }
 }

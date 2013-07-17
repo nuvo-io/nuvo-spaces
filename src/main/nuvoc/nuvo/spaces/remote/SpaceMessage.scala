@@ -82,12 +82,25 @@ case class SpaceTuple(hash: Int, t: Tuple) extends SpaceMessage
 
 case class NoMatchingTuple(hash: Int) extends SpaceMessage
 
+
+// NOTE: The following message should be removed since it does not allow
+// for incrementally delivering the tuples
 /**
  * Provides a list of tuples
  *
  * @param tl the list of tuples
  */
 case class SpaceTupleList(hash: Int, tl: List[Tuple]) extends SpaceMessage
+
+/**
+ * Marks the beginning of a list of Tuples
+ */
+case class TListBegin(hash: Int) extends SpaceMessage
+
+/**
+ * Marks the end of a list of Tuples
+ */
+case class TListEnd(hash: Int) extends SpaceMessage
 
 /**
  * Defines a stream subscription

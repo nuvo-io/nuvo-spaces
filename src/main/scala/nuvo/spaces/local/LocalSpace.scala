@@ -8,6 +8,7 @@ import nuvo.concurrent.synchronizers._
 import scala.concurrent.future
 import scala.concurrent.ExecutionContext.Implicits.global
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 object LocalSpace {
   def apply[T <: Tuple](l: SpaceLocator) = new LocalSpace[T](l)
@@ -21,17 +22,16 @@ class LocalSpace[T <: Tuple](val locator: SpaceLocator, private var map: scala.c
 
   type Observer[X] = X => Unit
 
-  // private var map: scala.collection.immutable.Map[Any, T] =
-
+  private val streamCounter = new AtomicLong()
   private val mapRWLock = new ReentrantReadWriteLock()
 
-  private var streams = List[(T => Boolean, Observer[T])]()
+  private var streams = Map[Long, (T => Boolean, Observer[T])]()
   private var streamsData = List[T]()
   private val dispatcherLock = new ReentrantLock()
   private val dispatchQueueNotEmpty = dispatcherLock.newCondition()
 
   private val subSpaceRWLock = new ReentrantReadWriteLock()
-  private var subSpaceMap = scala.collection.immutable.Map[String, LocalSpace[T]]()
+  private var subSpaceMap = Map[String, LocalSpace[T]]()
 
   private val sreadListRWLock = new ReentrantReadWriteLock()
   private var sreadList = List[(Tuple => Boolean, Condition, ReentrantLock)]()
@@ -54,7 +54,11 @@ class LocalSpace[T <: Tuple](val locator: SpaceLocator, private var map: scala.c
           //println(">>> Got data!!!")
           val s  = streams
 
-          d.foreach( t => s.foreach(s => if (s._1(t)) s._2(t)))
+          d foreach { t =>
+            s foreach { s =>
+              if (s._2._1(t)) s._2._2(t)
+            }
+          }
 
           val srl = sreadList
 
@@ -159,11 +163,17 @@ class LocalSpace[T <: Tuple](val locator: SpaceLocator, private var map: scala.c
   }
 
   def stream[Q <: T](p: Tuple => Boolean, observer: Observer[Q]): Stream[Q] = {
-    val s = new LocalStream[Q]
-    s.observers += observer
-    streams = (p, s) :: streams
-    s
+    val sid = streamCounter.getAndIncrement
 
+    val closeAction = () => {
+      streams = streams - sid
+    }
+
+    val s = new LocalStream[Q](closeAction)
+    s.observers += observer
+    val streamParams = (p, s)
+    streams = streams + (sid  -> streamParams)
+    s
   }
 
   /*

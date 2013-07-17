@@ -1,2 +1,10 @@
-scala -J-server -J-Xmx4G -J-Xms2G -cp `dirname $0`/../target/scala-2.10/proguard/nuvo-spaces_2.10-0.1.1-SNAPSHOT.jar  nuvo.spaces.remote.SpaceServer spaces:ndr/tcp:localhost:9999 $*
+#!/bin/bash
+
+LOCATOR=localhost
+PORT=9999
+SPACE_LOCATOR=spaces:ndr/tcp:$LOCATOR:$PORT
+BASE_DIR=`dirname $0`
+JARS=`ls $BASE_DIR/deploy`
+
+scala -J-server -J-Xmx4G -J-Xms2G -cp $BASE_DIR/../target/scala-2.10/nuvo-spaces-assembly-0.1.2.jar:$1  nuvo.spaces.remote.SpaceServer $SPACE_LOCATOR
 

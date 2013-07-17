@@ -589,6 +589,108 @@ object SpaceTupleListHelper {
   
 }
 
+object TListBeginHelper {
+
+  def serialize(buf: RawBuffer, t: TListBegin, format: SerializationFormat) {
+    format match {
+    case NuvoSF  => serializeNuvoSF(buf, t)
+    }
+  }
+   
+  final def serializeNuvoSF(buf: RawBuffer, t: TListBegin) {
+    buf.order(ByteOrder.nativeOrder)
+    val __nuvoc_startPosition = buf.position
+    buf.position(__nuvoc_startPosition + 4)
+    buf.putInt(29)
+    buf.put("nuvo.spaces.remote.TListBegin".getBytes())
+    buf.putInt(t.hash)
+    val __nuvoc_serializedDataLength = buf.position - __nuvoc_startPosition - 4
+    val __nuvoc_MEL = (buf.order.value << 24) | (__nuvoc_serializedDataLength & 0x00ffffff)
+    buf.order(ByteOrder.littleEndian)
+    buf.putInt(__nuvoc_startPosition, __nuvoc_MEL)
+  }
+  
+  def deserialize(buf: RawBuffer,format: SerializationFormat):TListBegin = {
+    format match {
+    case NuvoSF  => deserializeNuvoSF(buf)
+    }
+  }
+  
+  final def deserializeNuvoSF(buf: RawBuffer) : TListBegin = {
+    buf.order(LittleEndian)
+    val __nuvoc_MEL = buf.getInt()
+    val __nuvoc_endianess =  (__nuvoc_MEL >> 24).toByte
+    val __nuvoc_serializeDataLength =  (__nuvoc_MEL & 0x00ffffff)
+    buf.order(__nuvoc_endianess match { case LittleEndian.value => LittleEndian; case BigEndian.value  => BigEndian; case _ => { buf.position(buf.position + __nuvoc_serializeDataLength) ; throw new RuntimeException("Invalid Format")}})
+    val __nuvoc_startPosition =  buf.position
+    val __nuvoc_nameLen = buf.getInt()
+    val __nuvoc_bbuf = new Array[Byte](__nuvoc_nameLen)
+    buf.get(__nuvoc_bbuf)
+    val __nuvoc_fqName = new String(__nuvoc_bbuf)
+    if (__nuvoc_fqName != "nuvo.spaces.remote.TListBegin") throw new RuntimeException("Cannot deserialize  +__nuvoc_fqName+ as a nuvo.spaces.remote.TListBegin")
+    val hash = buf.getInt()
+    buf.position(__nuvoc_startPosition + __nuvoc_serializeDataLength)
+    new TListBegin(hash )
+  }
+  
+  def deserializeNoHeaderNuvoSF(buf: RawBuffer) : TListBegin = {
+    val hash = buf.getInt()
+    new TListBegin(hash )
+  }
+  
+}
+
+object TListEndHelper {
+
+  def serialize(buf: RawBuffer, t: TListEnd, format: SerializationFormat) {
+    format match {
+    case NuvoSF  => serializeNuvoSF(buf, t)
+    }
+  }
+   
+  final def serializeNuvoSF(buf: RawBuffer, t: TListEnd) {
+    buf.order(ByteOrder.nativeOrder)
+    val __nuvoc_startPosition = buf.position
+    buf.position(__nuvoc_startPosition + 4)
+    buf.putInt(27)
+    buf.put("nuvo.spaces.remote.TListEnd".getBytes())
+    buf.putInt(t.hash)
+    val __nuvoc_serializedDataLength = buf.position - __nuvoc_startPosition - 4
+    val __nuvoc_MEL = (buf.order.value << 24) | (__nuvoc_serializedDataLength & 0x00ffffff)
+    buf.order(ByteOrder.littleEndian)
+    buf.putInt(__nuvoc_startPosition, __nuvoc_MEL)
+  }
+  
+  def deserialize(buf: RawBuffer,format: SerializationFormat):TListEnd = {
+    format match {
+    case NuvoSF  => deserializeNuvoSF(buf)
+    }
+  }
+  
+  final def deserializeNuvoSF(buf: RawBuffer) : TListEnd = {
+    buf.order(LittleEndian)
+    val __nuvoc_MEL = buf.getInt()
+    val __nuvoc_endianess =  (__nuvoc_MEL >> 24).toByte
+    val __nuvoc_serializeDataLength =  (__nuvoc_MEL & 0x00ffffff)
+    buf.order(__nuvoc_endianess match { case LittleEndian.value => LittleEndian; case BigEndian.value  => BigEndian; case _ => { buf.position(buf.position + __nuvoc_serializeDataLength) ; throw new RuntimeException("Invalid Format")}})
+    val __nuvoc_startPosition =  buf.position
+    val __nuvoc_nameLen = buf.getInt()
+    val __nuvoc_bbuf = new Array[Byte](__nuvoc_nameLen)
+    buf.get(__nuvoc_bbuf)
+    val __nuvoc_fqName = new String(__nuvoc_bbuf)
+    if (__nuvoc_fqName != "nuvo.spaces.remote.TListEnd") throw new RuntimeException("Cannot deserialize  +__nuvoc_fqName+ as a nuvo.spaces.remote.TListEnd")
+    val hash = buf.getInt()
+    buf.position(__nuvoc_startPosition + __nuvoc_serializeDataLength)
+    new TListEnd(hash )
+  }
+  
+  def deserializeNoHeaderNuvoSF(buf: RawBuffer) : TListEnd = {
+    val hash = buf.getInt()
+    new TListEnd(hash )
+  }
+  
+}
+
 object OpenStreamHelper {
 
   def serialize(buf: RawBuffer, t: OpenStream, format: SerializationFormat) {

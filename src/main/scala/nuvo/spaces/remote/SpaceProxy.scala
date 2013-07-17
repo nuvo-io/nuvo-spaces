@@ -2,6 +2,7 @@ package nuvo.spaces.remote
 
 import nuvo.spaces.{RemoteSpaceLocator, SpaceLocator, Stream, Space}
 import nuvo.core.{Tuple, Time, Duration}
+import nuvo.concurrent.Worker
 import nuvo.net.{NetLink, Locator}
 import nuvo.nio.{LittleEndian, RawBuffer}
 import nuvo.nio.prelude._
@@ -20,33 +21,43 @@ object SpaceProxy {
 }
 class SpaceProxy[T <: Tuple](val spaceLoc: RemoteSpaceLocator) extends Space[T] {
 
-  class StreamProxy(val locator: Locator, spaceHash: Int) {
-
-    class StreamImpl[Q <: T]( val streamProxy: StreamProxy, val streamHash: Int, val observer: Q => Unit)
-      extends Stream[Q] {
-
-      var running = true
-
-      def apply(v1: Tuple) {
-        observers.foreach(_(v1.asInstanceOf[Q]))
-      }
-
-      def close() {
-        streamProxy.closeStream(spaceHash)
-        running = false
-      }
-
-      var observers: ListBuffer[(Q) => Unit] = new ListBuffer[(Q) => Unit]
-      observers += observer
-    }
-
-    private val link = NetLink(locator)
+  // == Manages Streams from the remote space
+  class StreamsManager(val locator: Locator, spaceHash: Int) {
 
     private val buf = allocator.allocateDirect(Networking.defaultBufferSize)
     buf.order(LittleEndian)
 
+    private var streamProxyMap = Map[Int, StreamProxy[T]]()
+
+    // == Represents a specific stream
+    class StreamProxy[Q <: T](val link: NetLink, val streamHash: Int, val observer: Q => Unit) extends Stream[Q] {
+
+      var observers: ListBuffer[(Q) => Unit] = new ListBuffer[(Q) => Unit]()
+      observers += observer
+
+      private val workerBuf = allocator.allocateDirect()
+      buf.order(LittleEndian)
+
+      val ioWorker = Worker runLoop {
+        workerBuf.clear()
+        val msg = readMessage[StreamTuple](link, workerBuf)
+        observers.foreach(f => f(msg.t.asInstanceOf[Q]))
+      }
+
+      def close() {
+        buf.clear()
+        buf.putObject(CloseStream(streamHash))
+        buf.flip()
+        link.write(buf)
+        buf.clear()
+        ioWorker.interrupt()
+        link.channel.close()
+      }
+    }
+
 
     final def openStream[Q <: T](p: Tuple => Boolean, observer: Q => Unit): Stream[Q]= {
+      val link = NetLink(locator)
       buf.clear()
       buf.putObject(OpenStream(spaceHash, p))
       buf.flip()
@@ -54,44 +65,16 @@ class SpaceProxy[T <: Tuple](val spaceLoc: RemoteSpaceLocator) extends Space[T] 
       buf.clear()
       val streamHash = readMessage[StreamCookie](link, buf).hash
 
-
       log.debug(s">> StreamHash == $streamHash")
 
-      val s = new StreamImpl[Q](this, streamHash, observer)
-
-      // TODO: Add support for multiple streams. This simply requires to add a map holding
-      // Streams and their associated hashes
-      new Thread(new Runnable() {
-        private val buf = allocator.allocateDirect()
-        def run() {
-          try {
-            while (s.running) {
-              val q = readMessage[StreamTuple](link, buf).t.asInstanceOf[Q]
-              s(q)
-            }
-          } catch {
-            case ex: Exception => {
-              log.error(s"Buffer content was malformed: $buf")
-              ex.printStackTrace()
-            }
-            case rtex: RuntimeException => {
-              log.error(s"Buffer content was malformed: $buf")
-              rtex.printStackTrace()
-            }
-          }
-        }
-      }).start()
-      s
+      log.debug(s">> Creating Stream Proxy...")
+      val proxy = new StreamProxy[Q](link, streamHash, observer)
+      proxy
     }
 
-    final def closeStream(hash: Int) {
-      buf.clear()
-      buf.putObject(CloseStream(hash))
-      buf.flip()
-      link.write(buf)
-      buf.clear()
-    }
   }
+
+
 
   class ProxyImpl(val locator: Locator) {
     private val link = NetLink(locator)
@@ -154,16 +137,35 @@ class SpaceProxy[T <: Tuple](val spaceLoc: RemoteSpaceLocator) extends Space[T] 
       }
     }
 
+    private def readTupleList[Q](tuples: List[Q], link: NetLink, buf: RawBuffer): List[Q] = {
+      buf.clear()
+      readMessage[Any](link, buf) match {
+        case TListBegin(hash) => {
+          readTupleList(tuples, link, buf)
+        }
+        case TListEnd(hash) => {
+          tuples
+        }
+        case t: Any => {
+          val tuple = t.asInstanceOf[Q]
+          readTupleList(tuple :: tuples, link, buf)
+        }
+      }
+    }
+
     final def readAllTuple[Q <: T](p: Tuple => Boolean, spaceHash: Int): List[Q] = {
       buf.clear()
       buf.putObject(ReadAllTuple(spaceHash, p))
       buf.flip()
       link.write(buf)
       buf.clear()
+      /*
       readMessage[SpaceMessage](link, buf) match {
         case SpaceTupleList(hash, tuples) => tuples.asInstanceOf[List[Q]]
         case NoMatchingTuple(_) => List()
       }
+      */
+      readTupleList[Q](List[Q](), link, buf)
     }
 
     final def takeAllTuple[Q <: T](p: Tuple => Boolean, spaceHash: Int): List[Q] = {
@@ -172,11 +174,9 @@ class SpaceProxy[T <: Tuple](val spaceLoc: RemoteSpaceLocator) extends Space[T] 
       buf.flip()
       link.write(buf)
       buf.clear()
-      readMessage[SpaceMessage](link, buf) match {
-        case SpaceTupleList(hash, tuples) => tuples.asInstanceOf[List[Q]]
-        case NoMatchingTuple(_) => List()
-      }
+      readTupleList(List[Q](), link, buf)
     }
+
 
     final def getTuple[Q <: T: Manifest](key: Any, spaceHash: Int): Option[Q]  = {
       keyBuf.clear()
@@ -192,12 +192,15 @@ class SpaceProxy[T <: Tuple](val spaceLoc: RemoteSpaceLocator) extends Space[T] 
         case NoMatchingTuple(_) => None
       }
     }
+
+    def close(): Unit = {
+      link.channel.close()
+    }
   }
 
   private val proxy = new ProxyImpl(spaceLoc.locator)
   private val spaceHash = proxy.createSpace(spaceLoc.name)
-  private val streamProxy = new StreamProxy(spaceLoc.locator, spaceHash)
-
+  private val streamManager = new StreamsManager(spaceLoc.locator, spaceHash)
 
   /**
    * Write a tuple within this space
@@ -341,7 +344,7 @@ class SpaceProxy[T <: Tuple](val spaceLoc: RemoteSpaceLocator) extends Space[T] 
    * @tparam Q The type of the tuple-space entries that will be consumed
    * @return the newly create stream
    */
-  def stream[Q <: T](p: Tuple =>  Boolean, observer: Q => Unit): Stream[Q] = streamProxy.openStream(p, observer)
+  def stream[Q <: T](p: Tuple =>  Boolean, observer: Q => Unit): Stream[Q] = streamManager.openStream(p, observer)
 
 
   /**
@@ -452,5 +455,7 @@ class SpaceProxy[T <: Tuple](val spaceLoc: RemoteSpaceLocator) extends Space[T] 
   /**
    * Closes the spaces by releasing all the resources.
    */
-  def close() {}
+  def close() {
+    proxy.close()
+  }
 }

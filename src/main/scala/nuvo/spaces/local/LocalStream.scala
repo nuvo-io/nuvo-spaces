@@ -5,11 +5,8 @@ import nuvo.spaces.{Stream}
 import nuvo.core.Tuple
 
 
-class LocalStream[T <: Tuple] extends Stream[T] {
+private [local] class LocalStream[T <: Tuple](val closeAction: () => Unit) extends Stream[T] {
   var observers = new ListBuffer[T => Unit]
 
-  def close() { }
-
-  def apply(v: Tuple) = observers.foreach(_(v.asInstanceOf[T]))
-
+  def close() = closeAction()
 }

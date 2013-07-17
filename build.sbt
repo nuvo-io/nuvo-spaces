@@ -1,34 +1,44 @@
+import AssemblyKeys._ // put this at the top of the file
+
+assemblySettings
+
 name		:= "nuvo-spaces"
 
-version		:= "0.1.1"
+version		:= "0.1.2"
 
 organization 	:= "io.nuvo"
 
 homepage :=  Some(new java.net.URL("http://nuvo.io"))
 
-scalaVersion 	:= "2.10.1"
+scalaVersion 	:= "2.10.2"
 
-seq(githubRepoSettings: _*)
+// seq(githubRepoSettings: _*)
 
 scalaSource in Compile <<= baseDirectory(_ / "src")
 
-localRepo := Path.userHome / "github" / "repo"
+// localRepo := Path.userHome / "github" / "repo"
 
-githubRepo := "git@github.com:nuvo-io/mvn-repo.git"
+// githubRepo := "git@github.com:nuvo-io/mvn-repo.git"
 
 // libraryDependencies += "org.scalatest" % "scalatest_2.10" % "1.9.1" % "test"
 
-resolvers += "nuvo.io maven repo" at "http://nuvo-io.github.com/mvn-repo/releases"
+// resolvers += "nuvo.io maven repo" at "http://nuvo-io.github.com/mvn-repo/releases"
 
-libraryDependencies += "io.nuvo" % "nuvo-core_2.10" % "0.1.1"
+resolvers += "nuvo.io Ivy2 local repo" at Path.userHome + "/.ivy2/local"
+
+libraryDependencies += "io.nuvo" % "nuvo-core_2.10" % "0.1.2"
 
 autoCompilerPlugins := true
+
+// javacOptions ++= Seq("-source", "1.6", "-target", "1.6")
 
 scalacOptions += "-deprecation"
 
 scalacOptions += "-unchecked"
 
 scalacOptions += "-optimise"
+
+scalacOptions += "-Xlint"
 
 scalacOptions += "-feature"
 
