@@ -36,46 +36,32 @@ class LocalSpace[T <: Tuple](val locator: SpaceLocator, private var map: scala.c
   private val sreadListRWLock = new ReentrantReadWriteLock()
   private var sreadList = List[(Tuple => Boolean, Condition, ReentrantLock)]()
 
+  private final val dispatcher = nuvo.concurrent.Worker.runLoop {
+    var d: List[T] = List()
+    syncrhonized(dispatcherLock) {
+      if (streamsData.isEmpty) dispatchQueueNotEmpty.await()
+      d = streamsData
+      streamsData = List()
+    }
 
-  private final val dispatcher = new Thread (new Runnable {
-    def run() {
-      println("Running: "+ this)
-      var isInterrupted = false
-      while (!isInterrupted) {
-        var d: List[T] = null
+    val s  = streams
 
-        try {
-          // println(">>> Waiting for data")
-          syncrhonized(dispatcherLock) {
-            dispatchQueueNotEmpty.await()
-            d = streamsData
-            streamsData = List()
-          }
-          //println(">>> Got data!!!")
-          val s  = streams
+    d foreach { t =>
+      s foreach { s =>
+        if (s._2._1(t)) s._2._2(t)
+      }
+    }
 
-          d foreach { t =>
-            s foreach { s =>
-              if (s._2._1(t)) s._2._2(t)
-            }
-          }
+    val srl = sreadList
 
-          val srl = sreadList
-
-          srl foreach { e =>
-            d.find(e._1).foreach { x =>
-              syncrhonized(e._3) {
-                e._2.signalAll()
-              }
-            }
-          }
-
-        } catch {
-          case ie: InterruptedException => isInterrupted = true
+    srl foreach { e =>
+      d.find(e._1).foreach { x =>
+        syncrhonized(e._3) {
+          e._2.signalAll()
         }
-      } } } )
-
-  dispatcher.start()
+      }
+    }
+  }
 
   def write(t: T) {
     synchronizedWrite(mapRWLock) {
@@ -83,7 +69,7 @@ class LocalSpace[T <: Tuple](val locator: SpaceLocator, private var map: scala.c
     }
     // reference assignment is atomic in the VM.
     syncrhonized(dispatcherLock) {
-      if (!streams.isEmpty || !sreadList.isEmpty) {
+      if (!streams.isEmpty) {
         streamsData = streamsData ::: List(t)
         dispatchQueueNotEmpty.signalAll()
       }
