@@ -7,8 +7,6 @@ object SpaceLocator {
   def apply(sl: String): Option[SpaceLocator] = {
     if (sl.contains("@")) {
       val parts = sl split("@")
-
-      parts foreach(println)
       val locator = Locator(parts(1))
 
       locator.map(new RemoteSpaceLocator(parts(0), _))

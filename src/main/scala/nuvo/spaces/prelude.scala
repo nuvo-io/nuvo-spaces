@@ -5,6 +5,7 @@ import nuvo.core.Tuple
 import nuvo.spaces.local.LocalSpace
 import java.util.concurrent.locks.{ReentrantLock}
 import nuvo.concurrent.synchronizers._
+import nuvo.spaces.remote.SpaceProxy
 
 package object prelude {
   object LocalSpace {
@@ -23,13 +24,25 @@ package object prelude {
       }
     }
 
-    implicit def localSpaceBuilderWithLocator[T <: Tuple](l: SpaceLocator): Option[Space[T]] = {
+    def builderWithLocator[T <: Tuple](l: SpaceLocator): Option[Space[T]] = {
       Some(resolveSpace[T](l))
     }
 
-    implicit def localSpaceBuilderWithOptLocator[T <: Tuple](l: Option[SpaceLocator]): Option[Space[T]] = {
+    def builderWithOptLocator[T <: Tuple](l: Option[SpaceLocator]): Option[Space[T]] = {
       l map { loc => resolveSpace[T](loc) }
     }
+
+  }
+
+  object RemoteSpace {
+
+    def builderWithLocator[T <: Tuple](l: SpaceLocator): Option[Space[T]] = l match {
+      case rsl: RemoteSpaceLocator => Some(SpaceProxy[T](rsl))
+      case lsl: LocalSpaceLocator => None
+    }
+
+    def builderWithOptLocator[T <: Tuple](l: Option[SpaceLocator]): Option[Space[T]] =
+      l flatMap { loc => builderWithLocator[T](loc) }
 
   }
 

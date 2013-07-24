@@ -5,22 +5,23 @@ import nuvo.core.{Tuple, Duration, Time}
 import java.util.concurrent.atomic.AtomicLong
 
 object Space {
-  val anonymousSpaceName = "AnonymousSpace"
+  import prelude._
+  val anonymousSpaceName = "AnonymousSpace:"
 
   val counter = new AtomicLong()
 
-  def apply[T <: Tuple]()(implicit spaceBuilder: Option[SpaceLocator] => Option[Space[T]]) = {
+  def apply[T <: Tuple]() = {
     val loc = SpaceLocator(anonymousSpaceName + counter.getAndIncrement)
-    spaceBuilder(loc)
+    LocalSpace.builderWithOptLocator(loc)
   }
-  def apply[T <: Tuple](name: String)(implicit spaceBuilder: SpaceLocator => Option[Space[T]]) = {
-    SpaceLocator(name) map { sn =>
-      spaceBuilder(sn)
+
+  def apply[T <: Tuple](name: String) = {
+    SpaceLocator(name) match {
+      case loc @ Some(LocalSpaceLocator(s)) => LocalSpace.builderWithOptLocator(loc)
+      case loc @ Some(RemoteSpaceLocator(s, l)) => RemoteSpace.builderWithOptLocator(loc)
+      case None => None
     }
   }
-  def apply[T <: Tuple](l: SpaceLocator)(implicit spaceBuilder: SpaceLocator => Option[Space[T]]) = spaceBuilder(l)
-
-  def apply[T <: Tuple](ol: Option[SpaceLocator])(implicit spaceBuilder: Option[SpaceLocator] => Option[Space[T]]) = spaceBuilder(ol)
 }
 
 /**

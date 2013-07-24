@@ -6,6 +6,7 @@ import java.util.concurrent.locks.{Condition, ReentrantLock, ReentrantReadWriteL
 import nuvo.spaces.SpaceLocator
 import nuvo.concurrent.synchronizers._
 import scala.concurrent.future
+import scala.collection.immutable.Queue
 import scala.concurrent.ExecutionContext.Implicits.global
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
@@ -26,7 +27,7 @@ class LocalSpace[T <: Tuple](val locator: SpaceLocator, private var map: scala.c
   private val mapRWLock = new ReentrantReadWriteLock()
 
   private var streams = Map[Long, (T => Boolean, Observer[T])]()
-  private var streamsData = List[T]()
+  private var streamsData = Queue[T]()
   private val dispatcherLock = new ReentrantLock()
   private val dispatchQueueNotEmpty = dispatcherLock.newCondition()
 
@@ -37,11 +38,11 @@ class LocalSpace[T <: Tuple](val locator: SpaceLocator, private var map: scala.c
   private var sreadList = List[(Tuple => Boolean, Condition, ReentrantLock)]()
 
   private final val dispatcher = nuvo.concurrent.Worker.runLoop {
-    var d: List[T] = List()
+    var d: Queue[T] = Queue[T]()
     syncrhonized(dispatcherLock) {
       if (streamsData.isEmpty) dispatchQueueNotEmpty.await()
       d = streamsData
-      streamsData = List()
+      streamsData = Queue[T]()
     }
 
     val s  = streams
@@ -70,7 +71,7 @@ class LocalSpace[T <: Tuple](val locator: SpaceLocator, private var map: scala.c
     // reference assignment is atomic in the VM.
     syncrhonized(dispatcherLock) {
       if (!streams.isEmpty) {
-        streamsData = streamsData ::: List(t)
+        streamsData = streamsData :+ t
         dispatchQueueNotEmpty.signalAll()
       }
     }
