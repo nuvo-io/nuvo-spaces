@@ -15,7 +15,7 @@ object SpaceDemo {
 
   def main(args: Array[String]) {
     val locator = SpaceLocator("OximeterSpace")
-    val ospace = Space[Oximeter](locator)
+     val ospace = Space[Oximeter](locator)
 
     ospace map { space =>
       future {

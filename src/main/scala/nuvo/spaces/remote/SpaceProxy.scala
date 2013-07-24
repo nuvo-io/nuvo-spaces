@@ -225,9 +225,9 @@ class SpaceProxy[T <: Tuple](val spaceLoc: RemoteSpaceLocator) extends Space[T] 
    * tuples in the future makes it easy to model timer as well as reminders.
    *
    * @param tuple the tuple to be written into the space
-   * @param t the time at which the tuple will be written.
+   * @param d the duration after which the tuple will be written.
    */
-  def write(tuple: T, t: Time) {
+  def write(tuple: T, d: Duration) {
     throw new NotImplementedError("Operation Not Implemented")
   }
 
@@ -238,7 +238,7 @@ class SpaceProxy[T <: Tuple](val spaceLoc: RemoteSpaceLocator) extends Space[T] 
    * @param tuples the tuples to be written into the space
    * @param t the time at which the tuple will be written.
    */
-  def write(tuples: List[T], t: Time) {
+  def write(tuples: List[T], d: Duration) {
     throw new NotImplementedError("Operation Not Implemented")
   }
 

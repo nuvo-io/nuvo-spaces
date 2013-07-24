@@ -78,6 +78,7 @@ class LocalSpace[T <: Tuple](val locator: SpaceLocator, private var map: scala.c
   }
 
 
+
   /**
    * Writes a tuple at time t, where t >= Time.now. The ability to write
    * tuples in the future makes it easy to model timer as well as reminders.
@@ -85,13 +86,12 @@ class LocalSpace[T <: Tuple](val locator: SpaceLocator, private var map: scala.c
    * @param e the tuple to be written into the space
    * @param t the time at which the tuple will be written.
    */
-  def write(e: T, t: Time) {
+  def write(e: T, d: Duration): Unit = {
     //TODO: Should not use future here since it could block after consuming all
     // available threads. A better approach is to use a queue to store the
     // tuple on a list and have a timer that schedules insertions.
-    if (t <= Time.now) synchronizedWrite(mapRWLock) { this.write(e) }
-    else future {
-      wait((t-Time.now).duration)
+    future {
+      wait(d.duration)
       this.write(e)
     }
   }
@@ -139,14 +139,12 @@ class LocalSpace[T <: Tuple](val locator: SpaceLocator, private var map: scala.c
     res
   }
 
-  def exec(f: (Space[T]) => Unit) {
-    future {
-      f(this)
-    }
-  }
+  def exec(f: (Space[T]) => Unit): Unit = future { f(this) }
 
-  def exec(f: (Space[T]) => Unit, d: Duration) {
 
+  def exec(f: (Space[T]) => Unit, d: Duration): Unit  = future {
+    wait(d.duration)
+    f(this)
   }
 
   def stream[Q <: T](p: Tuple => Boolean, observer: Observer[Q]): Stream[Q] = {
@@ -316,11 +314,10 @@ class LocalSpace[T <: Tuple](val locator: SpaceLocator, private var map: scala.c
    * tuples in the future makes it easy to model timer as well as reminders.
    *
    * @param tuples the tuples to be written into the space
-   * @param t the time at which the tuple will be written.
+   * @param d the time duration afterwhich the tuple will be written.
    */
-  def write(tuples: List[T], t: Time) = {
-    tuples.foreach(this.write(_, t))
-  }
+  def write(tuples: List[T], d: Duration): Unit = tuples.foreach(this.write(_, d))
+
 
   /**
    * Atomically swap the tuple that satisfies the predicate p with the tuple q.

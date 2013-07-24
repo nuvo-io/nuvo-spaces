@@ -10,18 +10,21 @@ object Space {
 
   val counter = new AtomicLong()
 
-  def apply[T <: Tuple]() = {
+  def apply[T <: Tuple]() : Option[Space[T]] = {
     val loc = SpaceLocator(anonymousSpaceName + counter.getAndIncrement)
     LocalSpace.builderWithOptLocator(loc)
   }
 
-  def apply[T <: Tuple](name: String) = {
-    SpaceLocator(name) match {
-      case loc @ Some(LocalSpaceLocator(s)) => LocalSpace.builderWithOptLocator(loc)
-      case loc @ Some(RemoteSpaceLocator(s, l)) => RemoteSpace.builderWithOptLocator(loc)
-      case None => None
-    }
+  def apply[T <: Tuple](name: String) : Option[Space[T]] =  this.apply(SpaceLocator(name))
+
+  def apply[T <: Tuple](loc: Option[SpaceLocator]) : Option[Space[T]] = loc.flatMap (this.apply(_))
+
+  def apply[T <: Tuple](l: SpaceLocator) : Option[Space[T]] = l match {
+    case loc @ LocalSpaceLocator(s) => LocalSpace.builderWithLocator(loc)
+    case loc @ RemoteSpaceLocator(s, l) => RemoteSpace.builderWithLocator(loc)
+    case _ => None
   }
+
 }
 
 /**
@@ -38,32 +41,32 @@ trait Space[T <: Tuple] {
    *
    * @param tuple the tuple to be written into the space
    */
-  def write(tuple: T)
+  def write(tuple: T): Unit
 
   /**
    * Write a list of tuples within this space
    *
    * @param tuples the tuples to be written into the space
    */
-  def write(tuples: List[T])
+  def write(tuples: List[T]): Unit
 
   /**
    * Writes a tuple at time t, where t >= Time.now. The ability to write
    * tuples in the future makes it easy to model timer as well as reminders.
    *
    * @param tuple the tuple to be written into the space
-   * @param t the time at which the tuple will be written.
+   * @param d the duration after which the tuple will be written.
    */
-  def write(tuple: T, t: Time)
+  def write(tuple: T, d: Duration): Unit
 
   /**
    * Writes a list of tuples at time t, where t >= Time.now. The ability to write
    * tuples in the future makes it easy to model timer as well as reminders.
    *
    * @param tuples the tuples to be written into the space
-   * @param t the time at which the tuple will be written.
+   * @param d the duration after which the tuples will be written.
    */
-  def write(tuples: List[T], t: Time)
+  def write(tuples: List[T], d: Duration): Unit
 
   /**
    * Read a tuple that matches the given matcher. A copy of the tuple will be
@@ -160,7 +163,8 @@ trait Space[T <: Tuple] {
    * @param f the function to execute
    * @param d the delay after which the function will be executed
    */
-  def exec(f: (Space[T]) => Unit, d: Duration)
+  def exec(f: (Space[T]) => Unit, d: Duration): Unit
+
 
   /**
    * Create a stream that will be pushing updates for a given type T matching the
@@ -280,5 +284,5 @@ trait Space[T <: Tuple] {
   /**
    * Closes the spaces by releasing all the resources.
    */
-  def close()
+  def close(): Unit
 }
