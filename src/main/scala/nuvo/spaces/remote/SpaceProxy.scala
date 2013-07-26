@@ -51,7 +51,7 @@ class SpaceProxy[T <: Tuple](val spaceLoc: RemoteSpaceLocator) extends Space[T] 
         link.write(buf)
         buf.clear()
         ioWorker.interrupt()
-        link.channel.close()
+        // link.channel.close()
       }
     }
 

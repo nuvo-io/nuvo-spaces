@@ -3,9 +3,9 @@ package nuvo.spaces
 import scala.language.implicitConversions
 import nuvo.core.Tuple
 import nuvo.spaces.local.LocalSpace
-import java.util.concurrent.locks.{ReentrantLock}
+import java.util.concurrent.locks.{ReentrantReadWriteLock, ReentrantLock}
 import nuvo.concurrent.synchronizers._
-import nuvo.spaces.remote.SpaceProxy
+import nuvo.spaces.remote.{SpaceServer, SpaceProxy}
 
 package object prelude {
   object LocalSpace {
@@ -37,7 +37,12 @@ package object prelude {
   object RemoteSpace {
 
     def builderWithLocator[T <: Tuple](l: SpaceLocator): Option[Space[T]] = l match {
-      case rsl: RemoteSpaceLocator => Some(SpaceProxy[T](rsl))
+      case rsl: RemoteSpaceLocator => {
+        for (spaceS <- SpaceServerRegistry.lookupSpaceServer(rsl.locator.toString());
+             space <- spaceS.localCreateSpace[T](rsl.name)
+        ) yield space
+      }.orElse(Some(SpaceProxy[T](rsl)))
+
       case lsl: LocalSpaceLocator => None
     }
 
@@ -46,5 +51,22 @@ package object prelude {
 
   }
 
+  object SpaceServerRegistry {
+    private val lock = new ReentrantReadWriteLock()
+    private var serverRegistry = Map[String, SpaceServer]()
+
+    def registerSpaceServer(locator: String, space: SpaceServer): Unit =  synchronizedWrite(lock) {
+      serverRegistry = serverRegistry + (locator -> space)
+    }
+
+    def lookupSpaceServer(locator: String): Option[SpaceServer] = synchronizedRead(lock) {
+      serverRegistry.get(locator)
+    }
+
+    def unregisterSpace(locator: String): Unit = synchronizedWrite(lock) {
+      serverRegistry = serverRegistry - locator
+    }
+
+  }
 
 }
