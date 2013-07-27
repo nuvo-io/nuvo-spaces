@@ -7,7 +7,7 @@ import nuvo.net.NetLink
 
 
 package object streams {
-  private [spaces] final def getMessage(link: NetLink, buf: RawBuffer): String = {
+  private [spaces] final def getMessage(link: NetLink, buf: RawBuffer): (Long, Long) = {
 
     buf.clear()
     val hbpos = buf.capacity - 4
@@ -39,15 +39,14 @@ package object streams {
       val l = link.read(buf)
     } while (buf.position != buf.capacity)
     buf.position(buf.capacity - length)
-    buf.getString()
+    (buf.getLong(), buf.getLong())
   }
 
   final def readMessage[T](link: NetLink, buf: RawBuffer) = {
-    val typeName = getMessage(link, buf)
-    val (oserializers, kserializers) = SerializerCache.lookup(typeName).getOrElse (
+    val typeHash = getMessage(link, buf)
+    val (oserializers, kserializers) = SerializerCache.lookup(typeHash).getOrElse (
     {
-      SerializerCache.registerType(typeName)
-      SerializerCache.lookup(typeName).get
+      throw new RuntimeException("Unable to deserialize type. Ensure all types are properly registered")
     })
 
     val msg = oserializers._2.map(_.invoke(null, buf).asInstanceOf[T]).get
