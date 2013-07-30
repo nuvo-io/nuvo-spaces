@@ -43,9 +43,34 @@ class SpaceServer(val locator: Locator) {
   private val spaceNameMapRWLock = new ReentrantReadWriteLock()
 
   val spaceMap = new HashMap[Int, Space[Tuple]]()
+  var streamManagerMap = Map[Int, StreamManager]()
+
   private val spaceMapRWLock = new ReentrantReadWriteLock()
 
   val streamMap = new HashMap[Int, List[(Tuple => Boolean, Int, SocketChannel)]]
+
+  type TuplePredicate = Tuple => Boolean
+
+  final class StreamHandler(val p: TuplePredicate, val streamHash: Int, val cid: Long, val mp: MessagePump)
+
+  final class StreamManager extends Function[Tuple, Unit] {
+
+    var streamHandlers = List[StreamHandler]()
+    private val buf = allocator.allocateDirect()
+
+    final def predicate: Tuple => Boolean = _ => streamHandlers != Nil
+
+    final def apply(t: Tuple) {
+      // NOTE: This only works because we have a socket per-stream!
+      //
+      buf.clear()
+      buf.putObject(StreamTuple(0, t))
+      buf.flip()
+      streamHandlers.filter(_.p(t)).foreach(h => h.mp.writeTo(buf, h.cid))
+    }
+
+  }
+
 
 
   def localCreateSpace[T <: Tuple](spaceName: String): Option[Space[T]] = {
@@ -58,6 +83,9 @@ class SpaceServer(val locator: Locator) {
         synchronizedWrite(spaceMapRWLock) {
           Space[T]().map { s =>
             spaceMap += (hash -> s.asInstanceOf[Space[Tuple]])
+            val streamManager = new StreamManager()
+            s.stream(streamManager.predicate, streamManager)
+            streamManagerMap = streamManagerMap + (hash -> streamManager)
             s
           }
         }
@@ -65,21 +93,7 @@ class SpaceServer(val locator: Locator) {
     }
   }
 
-
-
   object SpaceServerProtocol {
-
-    final class StreamHandler(val streamHash: Int, val cid: Long, mp: MessagePump) extends Function[Tuple, Unit] {
-      private val buf = allocator.allocateDirect()
-
-      final def apply(t: Tuple) {
-        buf.clear()
-        buf.putObject(StreamTuple(streamHash, t))
-        buf.flip()
-        mp.writeTo(buf, cid)
-      }
-    }
-
 
     def react(sm: SpaceMessage, m: MessagePayload): Option[SpaceMessage] = {
       val buf = m.buf.clear()
@@ -98,6 +112,9 @@ class SpaceServer(val locator: Locator) {
               synchronizedWrite(spaceMapRWLock) {
                 import nuvo.spaces.prelude.LocalSpace._
                 Space[Tuple]() map {s =>
+                  val streamManager = new StreamManager()
+                  s.stream(streamManager.predicate, streamManager)
+                  streamManagerMap = streamManagerMap + (h -> streamManager)
                   spaceMap += (h -> s)
                 }
               }
@@ -129,8 +146,10 @@ class SpaceServer(val locator: Locator) {
               // TODO: We need to store the returned stream somewhere in order to
               // properly deal with the "close" operation.
               //
-              val handler = new StreamHandler(streamHash, cid, mp)
-              val s = space.stream(p, handler)
+              val streamManager = streamManagerMap.get(spaceHash).get
+              streamManager.streamHandlers = new StreamHandler(p, streamHash, cid, mp) :: streamManager.streamHandlers
+//              val handler = new StreamHandler(streamHash, cid, mp)
+//              val s = space.stream(p, handler)
               None
             }
             // TODO: Should add an explicit error message
