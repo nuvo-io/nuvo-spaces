@@ -66,7 +66,10 @@ class SpaceServer(val locator: Locator) {
       buf.clear()
       buf.putObject(StreamTuple(0, t))
       buf.flip()
-      streamHandlers.filter(_.p(t)).foreach(h => h.mp.writeTo(buf, h.cid))
+      streamHandlers.filter(_.p(t)).foreach(h => {
+        h.mp.writeTo(buf, h.cid)
+        buf.flip()
+      })
     }
 
   }
