@@ -63,11 +63,16 @@ class SpaceServer(val locator: Locator) {
     final def apply(t: Tuple) {
       // NOTE: This only works because we have a socket per-stream!
       //
-      buf.clear()
-      buf.putObject(StreamTuple(0, t))
-      buf.flip()
+      var isSerialized = false
+
       // filter(_.p(t)).
       streamHandlers.foreach(h => if (h.p(t)) {
+        if (!isSerialized) {
+          buf.clear()
+          buf.putObject(StreamTuple(0, t))
+          buf.flip()
+          isSerialized = true
+        }
         h.mp.writeTo(buf, h.cid)
         buf.flip()
       })
